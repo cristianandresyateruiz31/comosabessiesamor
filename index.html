@@ -1,0 +1,1052 @@
+import React, { useState, useEffect } from 'react';
+import { Heart, Users, MessageCircle, Search, Shield, Star, Clock, MapPin, User, Phone, X, Send, Filter, ArrowLeft } from 'lucide-react';
+
+export default function DatingPlatform() {
+  const [currentView, setCurrentView] = useState('home');
+  const [currentProfile, setCurrentProfile] = useState(null);
+  const [profiles, setProfiles] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [activeConversation, setActiveConversation] = useState(null);
+  const [messageText, setMessageText] = useState('');
+  const [filters, setFilters] = useState({ minAge: 18, maxAge: 99, sex: 'all' });
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('tarjeta');
+  const [paymentData, setPaymentData] = useState({
+    cardNumber: '',
+    cardName: '',
+    expiryDate: '',
+    cvv: '',
+    nequiPhone: ''
+  });
+  const [formData, setFormData] = useState({
+    name: '',
+    age: '',
+    sex: 'Masculino',
+    height: '',
+    country: '',
+    state: '',
+    city: '',
+    color: '',
+    maritalStatus: 'Soltero(a)',
+    hasChildren: 'Sin hijos',
+    spiritualRole: 'Publicador',
+    baptismYears: '',
+    serviceHours: '',
+    whatsapp: '',
+    minAge: 18,
+    maxAge: 99,
+    food: '',
+    hobbies: '',
+    preferences: '',
+    answer1: '',
+    answer2: '',
+    answer3: ''
+  });
+  const [credits, setCredits] = useState(0);
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const profilesResult = await window.storage.list('profile:');
+      if (profilesResult && profilesResult.keys) {
+        const loadedProfiles = await Promise.all(
+          profilesResult.keys.map(async (key) => {
+            try {
+              const result = await window.storage.get(key);
+              return result ? JSON.parse(result.value) : null;
+            } catch {
+              return null;
+            }
+          })
+        );
+        setProfiles(loadedProfiles.filter(p => p !== null));
+      }
+
+      try {
+        const currentProfileResult = await window.storage.get('currentUser');
+        if (currentProfileResult) {
+          setCurrentProfile(JSON.parse(currentProfileResult.value));
+        }
+      } catch {
+        console.log('No profile');
+      }
+
+      try {
+        const creditsResult = await window.storage.get('credits');
+        if (creditsResult) {
+          setCredits(parseInt(creditsResult.value));
+        }
+      } catch {
+        setCredits(0);
+      }
+
+      try {
+        const convoResult = await window.storage.get('conversations');
+        if (convoResult) {
+          setConversations(JSON.parse(convoResult.value));
+        }
+      } catch {
+        setConversations([]);
+      }
+    } catch (error) {
+      console.log('Starting fresh');
+    }
+  };
+
+  const saveData = async () => {
+    try {
+      await window.storage.set('credits', credits.toString());
+      await window.storage.set('conversations', JSON.stringify(conversations));
+      if (currentProfile) {
+        await window.storage.set('currentUser', JSON.stringify(currentProfile));
+      }
+    } catch (error) {
+      console.error('Error saving:', error);
+    }
+  };
+
+  useEffect(() => {
+    saveData();
+  }, [credits, conversations, currentProfile]);
+
+  const jwQuestions = [
+    { q: "¿Cuál es el nombre de la organización que publicó la Biblia del Nuevo Mundo?", a: "testigos de jehova" },
+    { q: "¿Cómo se llama la revista más antigua de los testigos de Jehová?", a: "atalaya" },
+    { q: "¿Cuál es el nombre del Reino que los cristianos piden en el Padrenuestro?", a: "reino de dios" }
+  ];
+
+  const spiritualRoles = ["Anciano", "Siervo Ministerial", "Precursor Auxiliar", "Precursor Regular", "Publicador"];
+  const MaritalStatus = ["Soltero(a)", "Casado(a)", "Viudo(a)", "Separado(a)", "Divorciado(a)"];
+
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    setErrors(prev => ({ ...prev, [field]: '' }));
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.name.trim()) newErrors.name = 'El nombre es requerido';
+    if (!formData.age || formData.age < 18 || formData.age > 100) newErrors.age = 'Edad debe ser entre 18 y 100';
+    if (!formData.height || formData.height < 100 || formData.height > 250) newErrors.height = 'Altura inválida';
+    if (!formData.country.trim()) newErrors.country = 'País es requerido';
+    if (!formData.city.trim()) newErrors.city = 'Ciudad es requerida';
+    if (!formData.whatsapp.trim()) newErrors.whatsapp = 'WhatsApp es requerido';
+    
+    const normalizeAnswer = (str) => str.toLowerCase().trim().replace(/[^a-z0-9\s]/g, '');
+    
+    if (!normalizeAnswer(formData.answer1).includes(normalizeAnswer(jwQuestions[0].a))) {
+      newErrors.answer1 = 'Respuesta incorrecta';
+    }
+    if (!normalizeAnswer(formData.answer2).includes(normalizeAnswer(jwQuestions[1].a))) {
+      newErrors.answer2 = 'Respuesta incorrecta';
+    }
+    if (!normalizeAnswer(formData.answer3).includes(normalizeAnswer(jwQuestions[2].a))) {
+      newErrors.answer3 = 'Respuesta incorrecta';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleRegister = async () => {
+    if (!validateForm()) {
+      alert('Por favor corrige los errores en el formulario');
+      return;
+    }
+
+    // Mostrar checkout en lugar de crear perfil directamente
+    setShowCheckout(true);
+  };
+
+  const processPayment = async () => {
+    // Validar datos de pago según el método seleccionado
+    if (paymentMethod === 'tarjeta') {
+      if (!paymentData.cardNumber || paymentData.cardNumber.length < 16) {
+        alert('Número de tarjeta inválido');
+        return;
+      }
+      if (!paymentData.cardName.trim()) {
+        alert('Nombre del titular requerido');
+        return;
+      }
+      if (!paymentData.expiryDate || !paymentData.cvv) {
+        alert('Completa todos los datos de la tarjeta');
+        return;
+      }
+    } else if (paymentMethod === 'nequi') {
+      if (!paymentData.nequiPhone || paymentData.nequiPhone.length < 10) {
+        alert('Número de Nequi inválido');
+        return;
+      }
+    }
+
+    // Simular procesamiento de pago
+    const newProfile = {
+      id: Date.now().toString(),
+      ...formData,
+      createdAt: new Date().toISOString(),
+      paymentMethod: paymentMethod
+    };
+
+    try {
+      await window.storage.set(`profile:${newProfile.id}`, JSON.stringify(newProfile));
+      await window.storage.set('currentUser', JSON.stringify(newProfile));
+      
+      setCurrentProfile(newProfile);
+      setProfiles(prev => [...prev, newProfile]);
+      setShowCheckout(false);
+      setCredits(5); // 5 créditos de regalo al registrarse
+      alert('¡Pago procesado exitosamente! Tu perfil ha sido creado.\n\n🎁 Has recibido 5 créditos de regalo para iniciar conversaciones.');
+      setCurrentView('browse');
+    } catch (error) {
+      alert('Error al procesar el pago. Por favor intenta de nuevo.');
+    }
+  };
+
+  const startConversation = (profile) => {
+    if (!currentProfile) {
+      alert('Debes crear un perfil primero');
+      setCurrentView('register');
+      return;
+    }
+
+    if (credits < 1) {
+      alert('Necesitas comprar créditos ($4.000 COP por conversación)');
+      return;
+    }
+
+    const existingConvo = conversations.find(c => 
+      (c.user1 === currentProfile.id && c.user2 === profile.id) ||
+      (c.user2 === currentProfile.id && c.user1 === profile.id)
+    );
+
+    if (existingConvo) {
+      setActiveConversation(existingConvo);
+      setCurrentView('chat');
+    } else {
+      setCredits(credits - 1);
+      const newConvo = {
+        id: Date.now().toString(),
+        user1: currentProfile.id,
+        user2: profile.id,
+        messages: [{
+          from: 'system',
+          text: '¡Conversación iniciada! Saluda a tu nuevo contacto. Recuerda ser respetuoso y genuino. 💜',
+          timestamp: new Date().toISOString()
+        }],
+        profile: profile
+      };
+      setConversations(prev => [...prev, newConvo]);
+      setActiveConversation(newConvo);
+      setCurrentView('chat');
+    }
+  };
+
+  const sendMessage = () => {
+    if (!messageText.trim() || !activeConversation) return;
+
+    const newMessage = {
+      from: currentProfile.id,
+      text: messageText,
+      timestamp: new Date().toISOString()
+    };
+
+    const updatedConvo = {
+      ...activeConversation,
+      messages: [...activeConversation.messages, newMessage]
+    };
+
+    setConversations(prev => 
+      prev.map(c => c.id === activeConversation.id ? updatedConvo : c)
+    );
+    setActiveConversation(updatedConvo);
+    setMessageText('');
+  };
+
+  const buyCredits = () => {
+    // Mostrar modal de pago para comprar créditos también
+    const confirmed = confirm('¿Deseas comprar 5 créditos por $20.000 COP?\n\nEn un entorno real, aquí se procesaría el pago.');
+    if (confirmed) {
+      setCredits(credits + 5);
+      alert('¡5 créditos agregados exitosamente!');
+    }
+  };
+
+  const filteredProfiles = profiles.filter(profile => {
+    if (!currentProfile || profile.id === currentProfile.id) return false;
+    
+    const ageMatch = profile.age >= filters.minAge && profile.age <= filters.maxAge;
+    const sexMatch = filters.sex === 'all' || 
+      (filters.sex === 'Masculino' && currentProfile.sex === 'Femenino' && profile.sex === 'Masculino') ||
+      (filters.sex === 'Femenino' && currentProfile.sex === 'Masculino' && profile.sex === 'Femenino');
+    
+    return ageMatch && sexMatch;
+  });
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-amber-900">
+      <header className="bg-gradient-to-r from-amber-400 via-purple-600 to-amber-400 shadow-2xl border-b-4 border-amber-300">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="bg-gradient-to-br from-amber-300 to-amber-500 p-3 rounded-full shadow-xl">
+                <Heart className="w-8 h-8 text-purple-900" fill="currentColor" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-white to-amber-200">
+                  ¿Cómo Sabes Si Es Amor?
+                </h1>
+                <p className="text-amber-100 text-sm">comosabessiesamor.com</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              {currentProfile && (
+                <div className="bg-black bg-opacity-30 px-4 py-2 rounded-full border-2 border-purple-300">
+                  <p className="text-purple-200 font-semibold text-sm">{currentProfile.name}</p>
+                </div>
+              )}
+              <div className="bg-black bg-opacity-30 px-6 py-3 rounded-full border-2 border-amber-300 shadow-lg">
+                <p className="text-amber-200 font-bold text-lg">Créditos: {credits}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {currentView === 'home' && (
+        <div className="max-w-7xl mx-auto px-4 py-16">
+          <div className="text-center mb-16 space-y-6">
+            <div className="inline-block bg-gradient-to-r from-purple-500 to-pink-500 p-1 rounded-3xl shadow-2xl">
+              <div className="bg-black px-8 py-4 rounded-3xl">
+                <h2 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-purple-400 to-pink-300 mb-4">
+                  Encuentra Tu Media Naranja
+                </h2>
+                <p className="text-xl text-purple-300">
+                  Conecta con personas que comparten tu fe y valores
+                </p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
+              <div className="bg-gradient-to-br from-purple-800 to-purple-900 p-6 rounded-2xl shadow-2xl border-2 border-amber-400 transform hover:scale-105 transition">
+                <div className="bg-amber-400 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <Shield className="w-8 h-8 text-purple-900" />
+                </div>
+                <h3 className="text-2xl font-bold text-amber-300 mb-2">Seguro y Confiable</h3>
+                <p className="text-purple-200">Verificación basada en valores espirituales</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-pink-700 to-purple-900 p-6 rounded-2xl shadow-2xl border-2 border-amber-400 transform hover:scale-105 transition">
+                <div className="bg-amber-400 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <Users className="w-8 h-8 text-purple-900" />
+                </div>
+                <h3 className="text-2xl font-bold text-amber-300 mb-2">Comunidad Activa</h3>
+                <p className="text-purple-200">{(3900150 + profiles.length).toLocaleString('es-ES')} personas registradas</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-purple-900 to-pink-800 p-6 rounded-2xl shadow-2xl border-2 border-amber-400 transform hover:scale-105 transition">
+                <div className="bg-amber-400 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <Star className="w-8 h-8 text-purple-900" />
+                </div>
+                <h3 className="text-2xl font-bold text-amber-300 mb-2">Conexiones Reales</h3>
+                <p className="text-purple-200">$4.000 COP por conversación</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-center space-x-6">
+            <button
+              onClick={() => setCurrentView('register')}
+              className="bg-gradient-to-r from-amber-400 to-amber-500 text-purple-900 px-12 py-4 rounded-full font-bold text-xl shadow-2xl hover:shadow-amber-400/50 transform hover:scale-110 transition border-4 border-amber-300"
+            >
+              {currentProfile ? 'Ver Mi Perfil' : 'Registrarse Ahora'}
+            </button>
+            <button
+              onClick={() => setCurrentView('browse')}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-12 py-4 rounded-full font-bold text-xl shadow-2xl hover:shadow-purple-400/50 transform hover:scale-110 transition border-4 border-amber-300"
+            >
+              Explorar Perfiles
+            </button>
+          </div>
+        </div>
+      )}
+
+      {currentView === 'register' && (
+        <div className="max-w-4xl mx-auto px-4 py-12">
+          <div className="bg-gradient-to-br from-purple-900 via-black to-purple-900 p-8 rounded-3xl shadow-2xl border-4 border-amber-400">
+            <h2 className="text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-purple-300 mb-8">
+              {currentProfile ? 'Mi Perfil' : 'Crear Mi Perfil'}
+            </h2>
+
+            <div className="space-y-6">
+              <div className="bg-purple-800 bg-opacity-50 p-6 rounded-2xl border-2 border-purple-600">
+                <h3 className="text-2xl font-bold text-amber-300 mb-4 flex items-center">
+                  <User className="mr-2" /> Información Personal
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Nombre Completo *</label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      className={`w-full bg-black bg-opacity-50 border-2 ${errors.name ? 'border-red-500' : 'border-amber-400'} rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500`}
+                      onChange={(e) => handleInputChange('name', e.target.value)}
+                    />
+                    {errors.name && <p className="text-red-400 text-sm mt-1">{errors.name}</p>}
+                  </div>
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Edad *</label>
+                    <input
+                      type="number"
+                      value={formData.age}
+                      className={`w-full bg-black bg-opacity-50 border-2 ${errors.age ? 'border-red-500' : 'border-amber-400'} rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500`}
+                      onChange={(e) => handleInputChange('age', e.target.value)}
+                    />
+                    {errors.age && <p className="text-red-400 text-sm mt-1">{errors.age}</p>}
+                  </div>
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Sexo</label>
+                    <select 
+                      value={formData.sex}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                      onChange={(e) => handleInputChange('sex', e.target.value)}
+                    >
+                      <option>Masculino</option>
+                      <option>Femenino</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Altura (cm) *</label>
+                    <input
+                      type="number"
+                      value={formData.height}
+                      className={`w-full bg-black bg-opacity-50 border-2 ${errors.height ? 'border-red-500' : 'border-amber-400'} rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500`}
+                      onChange={(e) => handleInputChange('height', e.target.value)}
+                    />
+                    {errors.height && <p className="text-red-400 text-sm mt-1">{errors.height}</p>}
+                  </div>
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">País *</label>
+                    <input
+                      type="text"
+                      value={formData.country}
+                      className={`w-full bg-black bg-opacity-50 border-2 ${errors.country ? 'border-red-500' : 'border-amber-400'} rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500`}
+                      onChange={(e) => handleInputChange('country', e.target.value)}
+                    />
+                    {errors.country && <p className="text-red-400 text-sm mt-1">{errors.country}</p>}
+                  </div>
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Departamento/Estado</label>
+                    <input
+                      type="text"
+                      value={formData.state}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                      onChange={(e) => handleInputChange('state', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Ciudad *</label>
+                    <input
+                      type="text"
+                      value={formData.city}
+                      className={`w-full bg-black bg-opacity-50 border-2 ${errors.city ? 'border-red-500' : 'border-amber-400'} rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500`}
+                      onChange={(e) => handleInputChange('city', e.target.value)}
+                    />
+                    {errors.city && <p className="text-red-400 text-sm mt-1">{errors.city}</p>}
+                  </div>
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Color Favorito</label>
+                    <input
+                      type="text"
+                      value={formData.color}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                      onChange={(e) => handleInputChange('color', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-purple-800 bg-opacity-50 p-6 rounded-2xl border-2 border-purple-600">
+                <h3 className="text-2xl font-bold text-amber-300 mb-4">Estado Civil e Hijos</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Estado Civil</label>
+                    <select 
+                      value={formData.maritalStatus}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                      onChange={(e) => handleInputChange('maritalStatus', e.target.value)}
+                    >
+                      {MaritalStatus.map(status => <option key={status}>{status}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Hijos</label>
+                    <select 
+                      value={formData.hasChildren}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                      onChange={(e) => handleInputChange('hasChildren', e.target.value)}
+                    >
+                      <option>Sin hijos</option>
+                      <option>Con hijos</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-purple-800 bg-opacity-50 p-6 rounded-2xl border-2 border-purple-600">
+                <h3 className="text-2xl font-bold text-amber-300 mb-4 flex items-center">
+                  <Star className="mr-2" /> Información Espiritual
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Privilegio de Servicio</label>
+                    <select 
+                      value={formData.spiritualRole}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                      onChange={(e) => handleInputChange('spiritualRole', e.target.value)}
+                    >
+                      {spiritualRoles.map(role => <option key={role}>{role}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Tiempo de Bautismo (años)</label>
+                    <input
+                      type="number"
+                      value={formData.baptismYears}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                      onChange={(e) => handleInputChange('baptismYears', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Horas de Servicio Mensuales</label>
+                    <input
+                      type="number"
+                      value={formData.serviceHours}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                      onChange={(e) => handleInputChange('serviceHours', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Número de WhatsApp *</label>
+                    <input
+                      type="tel"
+                      value={formData.whatsapp}
+                      className={`w-full bg-black bg-opacity-50 border-2 ${errors.whatsapp ? 'border-red-500' : 'border-amber-400'} rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500`}
+                      onChange={(e) => handleInputChange('whatsapp', e.target.value)}
+                    />
+                    {errors.whatsapp && <p className="text-red-400 text-sm mt-1">{errors.whatsapp}</p>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-purple-800 bg-opacity-50 p-6 rounded-2xl border-2 border-purple-600">
+                <h3 className="text-2xl font-bold text-amber-300 mb-4 flex items-center">
+                  <Search className="mr-2" /> ¿Qué Busco?
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Edad Mínima</label>
+                    <input
+                      type="number"
+                      value={formData.minAge}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                      onChange={(e) => handleInputChange('minAge', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Edad Máxima</label>
+                    <input
+                      type="number"
+                      value={formData.maxAge}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                      onChange={(e) => handleInputChange('maxAge', e.target.value)}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-purple-200 font-semibold block mb-2">Comida Favorita</label>
+                    <input
+                      type="text"
+                      value={formData.food}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                      onChange={(e) => handleInputChange('food', e.target.value)}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-purple-200 font-semibold block mb-2">Gustos y Hobbies</label>
+                    <textarea
+                      value={formData.hobbies}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500 h-24"
+                      onChange={(e) => handleInputChange('hobbies', e.target.value)}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-purple-200 font-semibold block mb-2">Preferencias en una Pareja</label>
+                    <textarea
+                      value={formData.preferences}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500 h-24"
+                      onChange={(e) => handleInputChange('preferences', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-purple-800 bg-opacity-50 p-6 rounded-2xl border-2 border-purple-600">
+                <h3 className="text-2xl font-bold text-amber-300 mb-4 flex items-center">
+                  <Shield className="mr-2" /> Preguntas de Verificación
+                </h3>
+                {jwQuestions.map((question, idx) => (
+                  <div key={idx} className="mb-4">
+                    <label className="text-purple-200 font-semibold block mb-2">{question.q}</label>
+                    <input
+                      type="text"
+                      value={formData[`answer${idx + 1}`]}
+                      className={`w-full bg-black bg-opacity-50 border-2 ${errors[`answer${idx + 1}`] ? 'border-red-500' : 'border-amber-400'} rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500`}
+                      onChange={(e) => handleInputChange(`answer${idx + 1}`, e.target.value)}
+                    />
+                    {errors[`answer${idx + 1}`] && <p className="text-red-400 text-sm mt-1">{errors[`answer${idx + 1}`]}</p>}
+                  </div>
+                ))}
+              </div>
+
+              <button 
+                onClick={handleRegister}
+                disabled={currentProfile !== null}
+                className="w-full bg-gradient-to-r from-amber-400 to-amber-500 text-purple-900 py-4 rounded-2xl font-bold text-xl shadow-2xl hover:shadow-amber-400/50 transform hover:scale-105 transition border-4 border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {currentProfile ? 'Perfil Ya Creado' : 'Continuar al Pago'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Checkout Modal */}
+      {showCheckout && (
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-purple-900 via-black to-purple-900 p-8 rounded-3xl shadow-2xl border-4 border-amber-400 max-w-2xl w-full max-h-screen overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-purple-300">
+                Método de Pago
+              </h2>
+              <button
+                onClick={() => setShowCheckout(false)}
+                className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full transition"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="bg-purple-800 bg-opacity-50 p-6 rounded-2xl border-2 border-purple-600 mb-6">
+              <h3 className="text-2xl font-bold text-amber-300 mb-4">Resumen de Compra</h3>
+              <div className="space-y-2 text-purple-200">
+                <div className="flex justify-between">
+                  <span>Registro de Perfil</span>
+                  <span className="font-bold">$15.000 COP</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>5 Créditos de Regalo</span>
+                  <span className="font-bold text-green-400">¡GRATIS!</span>
+                </div>
+                <div className="border-t-2 border-amber-400 pt-2 mt-2 flex justify-between text-xl font-bold text-amber-300">
+                  <span>TOTAL</span>
+                  <span>$15.000 COP</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-purple-800 bg-opacity-50 p-6 rounded-2xl border-2 border-purple-600 mb-6">
+              <h3 className="text-2xl font-bold text-amber-300 mb-4">Selecciona tu Método de Pago</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <button
+                  onClick={() => setPaymentMethod('tarjeta')}
+                  className={`p-4 rounded-xl border-2 transition ${
+                    paymentMethod === 'tarjeta'
+                      ? 'border-amber-400 bg-amber-400 bg-opacity-20'
+                      : 'border-purple-400 bg-black bg-opacity-30'
+                  }`}
+                >
+                  <div className="text-4xl mb-2">💳</div>
+                  <p className="text-white font-semibold">Tarjeta</p>
+                  <p className="text-purple-300 text-xs">Débito/Crédito</p>
+                </button>
+
+                <button
+                  onClick={() => setPaymentMethod('nequi')}
+                  className={`p-4 rounded-xl border-2 transition ${
+                    paymentMethod === 'nequi'
+                      ? 'border-amber-400 bg-amber-400 bg-opacity-20'
+                      : 'border-purple-400 bg-black bg-opacity-30'
+                  }`}
+                >
+                  <div className="text-4xl mb-2">📱</div>
+                  <p className="text-white font-semibold">Nequi</p>
+                  <p className="text-purple-300 text-xs">Pago móvil</p>
+                </button>
+
+                <button
+                  onClick={() => setPaymentMethod('pse')}
+                  className={`p-4 rounded-xl border-2 transition ${
+                    paymentMethod === 'pse'
+                      ? 'border-amber-400 bg-amber-400 bg-opacity-20'
+                      : 'border-purple-400 bg-black bg-opacity-30'
+                  }`}
+                >
+                  <div className="text-4xl mb-2">🏦</div>
+                  <p className="text-white font-semibold">PSE</p>
+                  <p className="text-purple-300 text-xs">Débito Online</p>
+                </button>
+              </div>
+
+              {/* Formulario de Tarjeta */}
+              {paymentMethod === 'tarjeta' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Número de Tarjeta</label>
+                    <input
+                      type="text"
+                      maxLength="16"
+                      placeholder="1234 5678 9012 3456"
+                      value={paymentData.cardNumber}
+                      onChange={(e) => setPaymentData(prev => ({ ...prev, cardNumber: e.target.value.replace(/\s/g, '') }))}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Nombre del Titular</label>
+                    <input
+                      type="text"
+                      placeholder="NOMBRE APELLIDO"
+                      value={paymentData.cardName}
+                      onChange={(e) => setPaymentData(prev => ({ ...prev, cardName: e.target.value.toUpperCase() }))}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-purple-200 font-semibold block mb-2">Fecha de Vencimiento</label>
+                      <input
+                        type="text"
+                        placeholder="MM/AA"
+                        maxLength="5"
+                        value={paymentData.expiryDate}
+                        onChange={(e) => {
+                          let value = e.target.value.replace(/\D/g, '');
+                          if (value.length >= 2) {
+                            value = value.slice(0, 2) + '/' + value.slice(2, 4);
+                          }
+                          setPaymentData(prev => ({ ...prev, expiryDate: value }));
+                        }}
+                        className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-purple-200 font-semibold block mb-2">CVV</label>
+                      <input
+                        type="password"
+                        maxLength="4"
+                        placeholder="123"
+                        value={paymentData.cvv}
+                        onChange={(e) => setPaymentData(prev => ({ ...prev, cvv: e.target.value.replace(/\D/g, '') }))}
+                        className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Formulario de Nequi */}
+              {paymentMethod === 'nequi' && (
+                <div className="space-y-4">
+                  <div className="bg-purple-700 bg-opacity-30 p-4 rounded-xl mb-4">
+                    <p className="text-purple-200 text-sm">
+                      💡 Recibirás una notificación push en tu app Nequi para aprobar el pago
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-purple-200 font-semibold block mb-2">Número de Celular Nequi</label>
+                    <input
+                      type="tel"
+                      maxLength="10"
+                      placeholder="3001234567"
+                      value={paymentData.nequiPhone}
+                      onChange={(e) => setPaymentData(prev => ({ ...prev, nequiPhone: e.target.value.replace(/\D/g, '') }))}
+                      className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* PSE */}
+              {paymentMethod === 'pse' && (
+                <div className="space-y-4">
+                  <div className="bg-purple-700 bg-opacity-30 p-4 rounded-xl">
+                    <p className="text-purple-200 text-sm mb-3">
+                      💡 Serás redirigido a tu banco para completar la transacción
+                    </p>
+                    <label className="text-purple-200 font-semibold block mb-2">Selecciona tu Banco</label>
+                    <select className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500">
+                      <option>Bancolombia</option>
+                      <option>Banco de Bogotá</option>
+                      <option>Davivienda</option>
+                      <option>BBVA Colombia</option>
+                      <option>Banco Popular</option>
+                      <option>Banco Agrario</option>
+                      <option>Colpatria</option>
+                      <option>Banco Caja Social</option>
+                      <option>Banco AV Villas</option>
+                      <option>Banco Occidente</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex space-x-4">
+              <button
+                onClick={() => setShowCheckout(false)}
+                className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 text-white py-4 rounded-2xl font-bold text-lg shadow-lg hover:shadow-gray-400/50 transform hover:scale-105 transition border-2 border-gray-500"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={processPayment}
+                className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 rounded-2xl font-bold text-lg shadow-2xl hover:shadow-green-400/50 transform hover:scale-105 transition border-4 border-amber-300"
+              >
+                Pagar $15.000 COP
+              </button>
+            </div>
+
+            <div className="mt-6 text-center">
+              <p className="text-purple-300 text-sm">🔒 Pago seguro y encriptado</p>
+              <p className="text-purple-400 text-xs mt-1">Incluye 5 créditos gratis para iniciar conversaciones</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {currentView === 'browse' && (
+        <div className="max-w-7xl mx-auto px-4 py-12">
+          <div className="mb-8">
+            <h2 className="text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-purple-300 mb-6">
+              Perfiles Disponibles
+            </h2>
+            
+            <div className="bg-gradient-to-br from-purple-900 to-black p-6 rounded-2xl border-2 border-amber-400 max-w-2xl mx-auto">
+              <h3 className="text-xl font-bold text-amber-300 mb-4 flex items-center">
+                <Filter className="mr-2" /> Filtros de Búsqueda
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-purple-200 font-semibold block mb-2">Edad Mínima</label>
+                  <input
+                    type="number"
+                    value={filters.minAge}
+                    className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-2 text-white"
+                    onChange={(e) => setFilters(prev => ({ ...prev, minAge: parseInt(e.target.value) || 18 }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-purple-200 font-semibold block mb-2">Edad Máxima</label>
+                  <input
+                    type="number"
+                    value={filters.maxAge}
+                    className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-2 text-white"
+                    onChange={(e) => setFilters(prev => ({ ...prev, maxAge: parseInt(e.target.value) || 99 }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-purple-200 font-semibold block mb-2">Buscar</label>
+                  <select 
+                    value={filters.sex}
+                    className="w-full bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-2 text-white"
+                    onChange={(e) => setFilters(prev => ({ ...prev, sex: e.target.value }))}
+                  >
+                    <option value="all">Todos</option>
+                    <option value="Masculino">Hombres</option>
+                    <option value="Femenino">Mujeres</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {filteredProfiles.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-purple-300 text-xl">No hay perfiles disponibles con estos filtros</p>
+              <p className="text-amber-300 mt-2">¡Sé el primero en crear tu perfil!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {filteredProfiles.map((profile) => (
+                <div key={profile.id} className="bg-gradient-to-br from-purple-900 to-black p-6 rounded-3xl shadow-2xl border-4 border-amber-400 transform hover:scale-105 transition">
+                  <div className={`${profile.sex === 'Masculino' ? 'bg-gradient-to-br from-blue-400 to-blue-600' : 'bg-gradient-to-br from-pink-400 to-pink-600'} h-48 rounded-2xl mb-4 flex flex-col items-center justify-center relative overflow-hidden`}>
+                    {profile.sex === 'Masculino' ? (
+                      <div className="relative">
+                        <div className="w-20 h-20 bg-amber-300 rounded-full mb-2"></div>
+                        <div className="w-24 h-16 bg-blue-800 rounded-t-full"></div>
+                        <div className="absolute top-6 left-1/2 transform -translate-x-1/2 text-4xl">👨</div>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <div className="w-20 h-20 bg-amber-300 rounded-full mb-2"></div>
+                        <div className="w-24 h-16 bg-pink-800 rounded-t-full"></div>
+                        <div className="absolute top-6 left-1/2 transform -translate-x-1/2 text-4xl">👩</div>
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="text-2xl font-bold text-amber-300 mb-2">{profile.name}</h3>
+                  <div className="space-y-2 text-purple-200 mb-4">
+                    <p className="flex items-center"><MapPin className="w-4 h-4 mr-2" /> {profile.city}, {profile.country}</p>
+                    <p className="flex items-center"><Clock className="w-4 h-4 mr-2" /> {profile.age} años</p>
+                    <p className="flex items-center"><Star className="w-4 h-4 mr-2" /> {profile.spiritualRole}</p>
+                    <p className="text-sm text-purple-300 mt-2">Estado: {profile.maritalStatus}</p>
+                    {profile.hobbies && <p className="text-sm text-purple-300 italic">"{profile.hobbies.substring(0, 60)}..."</p>}
+                  </div>
+                  <button
+                    onClick={() => startConversation(profile)}
+                    className="w-full bg-gradient-to-r from-amber-400 to-amber-500 text-purple-900 py-3 rounded-xl font-bold shadow-lg hover:shadow-amber-400/50 transform hover:scale-105 transition border-2 border-amber-300"
+                  >
+                    <MessageCircle className="inline mr-2" />
+                    Iniciar Chat ($4.000 COP)
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-12 text-center">
+            <button
+              onClick={buyCredits}
+              className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-12 py-4 rounded-full font-bold text-xl shadow-2xl hover:shadow-green-400/50 transform hover:scale-110 transition border-4 border-amber-300"
+            >
+              Comprar 5 Créditos - $20.000 COP
+            </button>
+          </div>
+        </div>
+      )}
+
+      {currentView === 'chat' && activeConversation && (
+        <div className="max-w-4xl mx-auto px-4 py-12">
+          <div className="bg-gradient-to-br from-purple-900 to-black rounded-3xl shadow-2xl border-4 border-amber-400 overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-400 to-purple-600 p-6 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => setCurrentView('browse')}
+                  className="bg-black bg-opacity-30 p-2 rounded-full hover:bg-opacity-50 transition"
+                >
+                  <ArrowLeft className="w-6 h-6 text-white" />
+                </button>
+                <User className="w-12 h-12 text-white bg-purple-900 rounded-full p-2" />
+                <div>
+                  <h3 className="text-2xl font-bold text-white">{activeConversation.profile.name}</h3>
+                  <p className="text-amber-200 text-sm">{activeConversation.profile.city}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-white font-semibold">WhatsApp:</p>
+                <p className="text-amber-200">{activeConversation.profile.whatsapp}</p>
+              </div>
+            </div>
+
+            <div className="h-96 overflow-y-auto p-6 space-y-4 bg-black bg-opacity-30">
+              {activeConversation.messages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex ${msg.from === 'system' ? 'justify-center' : msg.from === currentProfile.id ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-xs px-4 py-3 rounded-2xl ${
+                      msg.from === 'system'
+                        ? 'bg-amber-500 bg-opacity-30 text-amber-200 text-sm'
+                        : msg.from === currentProfile.id
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+                        : 'bg-gradient-to-r from-amber-500 to-amber-600 text-purple-900'
+                    }`}
+                  >
+                    <p>{msg.text}</p>
+                    <p className="text-xs opacity-70 mt-1">
+                      {new Date(msg.timestamp).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-6 bg-purple-900 bg-opacity-50 flex space-x-3">
+              <input
+                type="text"
+                value={messageText}
+                placeholder="Escribe tu mensaje..."
+                className="flex-1 bg-black bg-opacity-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500"
+                onChange={(e) => setMessageText(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+              />
+              <button
+                onClick={sendMessage}
+                className="bg-gradient-to-r from-amber-400 to-amber-500 text-purple-900 px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-amber-400/50 transform hover:scale-105 transition border-2 border-amber-300"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <footer className="bg-gradient-to-r from-black via-purple-900 to-black mt-16 py-8 border-t-4 border-amber-400">
+        <div className="max-w-7xl mx-auto px-4 text-center">
+          <p className="text-amber-300 text-lg font-semibold">
+            © 2025 ¿Cómo Sabes Si Es Amor? - comosabessiesamor.com
+          </p>
+          <p className="text-purple-300 mt-2">
+            Una plataforma segura para encontrar el amor basado en valores espirituales
+          </p>
+        </div>
+      </footer>
+
+      <div className="fixed bottom-8 right-8 flex flex-col space-y-4">
+        <button
+          onClick={() => setCurrentView('home')}
+          className="bg-gradient-to-br from-amber-400 to-amber-500 p-4 rounded-full shadow-2xl hover:shadow-amber-400/50 transform hover:scale-110 transition border-4 border-purple-900"
+        >
+          <Heart className="w-6 h-6 text-purple-900" />
+        </button>
+        <button
+          onClick={() => setCurrentView('register')}
+          className="bg-gradient-to-br from-purple-600 to-pink-600 p-4 rounded-full shadow-2xl hover:shadow-purple-400/50 transform hover:scale-110 transition border-4 border-amber-300"
+        >
+          <User className="w-6 h-6 text-white" />
+        </button>
+        <button
+          onClick={() => setCurrentView('browse')}
+          className="bg-gradient-to-br from-pink-600 to-purple-700 p-4 rounded-full shadow-2xl hover:shadow-pink-400/50 transform hover:scale-110 transition border-4 border-amber-300"
+        >
+          <Search className="w-6 h-6 text-white" />
+        </button>
+        {conversations.length > 0 && (
+          <button
+            onClick={() => {
+              if (conversations.length > 0) {
+                setActiveConversation(conversations[conversations.length - 1]);
+                setCurrentView('chat');
+              }
+            }}
+            className="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-full shadow-2xl hover:shadow-green-400/50 transform hover:scale-110 transition border-4 border-amber-300 relative"
+          >
+            <MessageCircle className="w-6 h-6 text-white" />
+            {conversations.length > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                {conversations.length}
+              </span>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
